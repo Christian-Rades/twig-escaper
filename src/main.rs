@@ -13,14 +13,15 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let path = args()
         .nth(1)
         .expect("first arg is the file path to a md file");
-    let mut f = File::open(path)?;
+    let mut f = File::open(&path)?;
     let mut text = String::default();
 
     f.read_to_string(&mut text)?;
+    drop(f);
 
     let (rest, result) = parse(&text).unwrap();
 
-    let out = File::create("out.md")?;
+    let out = File::create(&path)?;
 
     let twig_regex = Regex::new("\\{%.*%\\}")?;
 
