@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
             DocumentPiece::Code(code) if twig_regex.is_match(code) => {
                 writeln!(&out, "{{% raw %}}")?;
                 write!(&out, "{}", s)?;
-                writeln!(&out, "\n{{% endraw %}}")?;
+                write!(&out, "\n{{% endraw %}}")?;
             }
             _ => write!(&out, "{}", s)?,
         }
