@@ -2,7 +2,7 @@ use std::{env::args, error, fmt::Display, fs::File, io::Read, io::Write};
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_until},
+    bytes::complete::{tag, take_until, take_until1},
     multi::many0,
     sequence::delimited,
     IResult,
@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
     let (rest, result) = parse(&text).unwrap();
 
-    let out = File::create(&path)?;
+    let out = File::create(path)?;
 
     let twig_regex = Regex::new("\\{%.*%\\}")?;
 
@@ -44,6 +44,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 enum DocumentPiece<'a> {
     Text(&'a str),
     Code(&'a str),
+    RawEscaped(&'a str),
 }
 
 impl Display for DocumentPiece<'_> {
@@ -51,22 +52,32 @@ impl Display for DocumentPiece<'_> {
         match self {
             DocumentPiece::Text(text) => write!(f, "{}", text),
             DocumentPiece::Code(code) => write!(f, "```{}```", code),
+            DocumentPiece::RawEscaped(code) => write!(f, "{{% raw %}}{}{{% endraw %}}", code),
         }
     }
 }
 
 fn parse(i: &str) -> IResult<&str, Vec<DocumentPiece<'_>>> {
-    let (rest, mut results) = many0(alt((parse_code_piece, parse_text_piece)))(i)?;
+    let (rest, mut results) = many0(alt((parse_raw_piece, parse_code_piece, parse_text_piece)))(i)?;
     results.push(DocumentPiece::Text(rest));
     Ok(("", results))
 }
 
 fn parse_text_piece(i: &str) -> IResult<&str, DocumentPiece> {
-    let (rest, text) = take_until("```")(i)?;
+    let (rest, text) = alt((take_until1("{% raw %}"), take_until("```")))(i)?;
     Ok((rest, DocumentPiece::Text(text)))
 }
 
 fn parse_code_piece(i: &str) -> IResult<&str, DocumentPiece> {
     let (rest, code) = delimited(tag("```"), take_until("```"), tag("```"))(i)?;
     Ok((rest, DocumentPiece::Code(code)))
+}
+
+fn parse_raw_piece(i: &str) -> IResult<&str, DocumentPiece> {
+    let (rest, code) = delimited(
+        tag("{% raw %}"),
+        take_until("{% endraw %}"),
+        tag("{% endraw %}"),
+    )(i)?;
+    Ok((rest, DocumentPiece::RawEscaped(code)))
 }
